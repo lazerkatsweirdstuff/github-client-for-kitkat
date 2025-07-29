@@ -43,18 +43,21 @@
         button.danger {
             background-color: #d73a49;
         }
-        .repo-item {
+        button.secondary {
+            background-color: #6c757d;
+        }
+        .repo-item, .file-item {
             padding: 10px;
             border-bottom: 1px solid #eee;
         }
-        .repo-item:last-child {
+        .repo-item:last-child, .file-item:last-child {
             border-bottom: none;
         }
-        .repo-name {
+        .repo-name, .file-name {
             font-weight: bold;
             color: #0366d6;
         }
-        .repo-desc {
+        .repo-desc, .file-content {
             color: #666;
             font-size: 0.9em;
         }
@@ -76,12 +79,14 @@
         .tabs {
             display: flex;
             margin-bottom: 15px;
+            flex-wrap: wrap;
         }
         .tab {
             padding: 10px 15px;
             background-color: #eee;
             cursor: pointer;
             margin-right: 5px;
+            margin-bottom: 5px;
         }
         .tab.active {
             background-color: white;
@@ -93,6 +98,21 @@
         .tab-content.active {
             display: block;
         }
+        .file-actions {
+            margin-top: 10px;
+        }
+        .file-content-editor {
+            width: 100%;
+            min-height: 200px;
+            font-family: monospace;
+        }
+        .breadcrumb {
+            margin-bottom: 10px;
+        }
+        .breadcrumb a {
+            color: #0366d6;
+            text-decoration: none;
+        }
     </style>
 </head>
 <body>
@@ -101,7 +121,7 @@
     <div class="container" id="authContainer">
         <h2>Authentication</h2>
         <div>
-            <p>Note: For security, use a personal access token (PAT) instead of password.</p>
+            <p>Note: For security, use a personal access token (PAT) with repo scope.</p>
             <input type="text" id="username" placeholder="GitHub username" />
             <input type="password" id="token" placeholder="Personal Access Token" />
             <button id="loginBtn">Login</button>
@@ -145,12 +165,47 @@
     </div>
     
     <div class="container auth-section" id="repoEditContainer" style="display: none;">
-        <h2>Edit Repository: <span id="editRepoName"></span></h2>
-        <textarea id="editRepoDesc" placeholder="Description"></textarea>
-        <button id="updateRepoBtn">Update Repository</button>
-        <button id="deleteRepoBtn" class="danger">Delete Repository</button>
-        <button id="backToReposBtn">Back to Repositories</button>
-        <div id="repoEditStatus"></div>
+        <div class="breadcrumb" id="repoBreadcrumb"></div>
+        <h2>Repository: <span id="editRepoName"></span></h2>
+        
+        <div class="tabs">
+            <div class="tab active" data-tab="repo-info">Repository Info</div>
+            <div class="tab" data-tab="repo-files">Files</div>
+        </div>
+        
+        <div class="tab-content active" id="repo-info-tab">
+            <textarea id="editRepoDesc" placeholder="Description"></textarea>
+            <button id="updateRepoBtn">Update Repository</button>
+            <button id="deleteRepoBtn" class="danger">Delete Repository</button>
+            <button id="backToReposBtn">Back to Repositories</button>
+            <div id="repoEditStatus"></div>
+        </div>
+        
+        <div class="tab-content" id="repo-files-tab">
+            <div id="fileBrowser"></div>
+            <div id="fileEditor" style="display: none;">
+                <textarea id="fileContentEditor" class="file-content-editor"></textarea>
+                <div class="file-actions">
+                    <button id="saveFileBtn">Save File</button>
+                    <button id="cancelEditFileBtn" class="secondary">Cancel</button>
+                    <button id="deleteFileBtn" class="danger">Delete File</button>
+                </div>
+                <div id="fileEditStatus"></div>
+            </div>
+            <div id="fileCreate" style="display: none;">
+                <input type="text" id="newFileName" placeholder="File path (e.g., folder/file.txt)" />
+                <textarea id="newFileContent" class="file-content-editor" placeholder="File content"></textarea>
+                <div class="file-actions">
+                    <button id="createFileBtn">Create File</button>
+                    <button id="cancelCreateFileBtn" class="secondary">Cancel</button>
+                </div>
+                <div id="fileCreateStatus"></div>
+            </div>
+            <div id="fileActions">
+                <button id="newFileBtn">New File</button>
+                <button id="refreshFilesBtn">Refresh Files</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -158,6 +213,9 @@
         var authToken = null;
         var currentUser = null;
         var currentRepo = null;
+        var currentPath = '';
+        var currentFile = null;
+        var currentFileSha = null;
         
         document.addEventListener('DOMContentLoaded', function() {
             // DOM elements
@@ -186,24 +244,45 @@
             var deleteRepoBtn = document.getElementById('deleteRepoBtn');
             var backToReposBtn = document.getElementById('backToReposBtn');
             var repoEditStatus = document.getElementById('repoEditStatus');
+            var repoBreadcrumb = document.getElementById('repoBreadcrumb');
+            var fileBrowser = document.getElementById('fileBrowser');
+            var fileEditor = document.getElementById('fileEditor');
+            var fileContentEditor = document.getElementById('fileContentEditor');
+            var saveFileBtn = document.getElementById('saveFileBtn');
+            var cancelEditFileBtn = document.getElementById('cancelEditFileBtn');
+            var deleteFileBtn = document.getElementById('deleteFileBtn');
+            var fileEditStatus = document.getElementById('fileEditStatus');
+            var fileCreate = document.getElementById('fileCreate');
+            var newFileName = document.getElementById('newFileName');
+            var newFileContent = document.getElementById('newFileContent');
+            var createFileBtn = document.getElementById('createFileBtn');
+            var cancelCreateFileBtn = document.getElementById('cancelCreateFileBtn');
+            var fileCreateStatus = document.getElementById('fileCreateStatus');
+            var newFileBtn = document.getElementById('newFileBtn');
+            var refreshFilesBtn = document.getElementById('refreshFilesBtn');
             
             // Tab switching
-            var tabs = document.querySelectorAll('.tab');
-            tabs.forEach(function(tab) {
-                tab.addEventListener('click', function() {
-                    // Remove active class from all tabs and contents
-                    document.querySelectorAll('.tab').forEach(function(t) {
-                        t.classList.remove('active');
+            function setupTabs(container) {
+                var tabs = container.querySelectorAll('.tab');
+                tabs.forEach(function(tab) {
+                    tab.addEventListener('click', function() {
+                        // Remove active class from all tabs and contents in this container
+                        container.querySelectorAll('.tab').forEach(function(t) {
+                            t.classList.remove('active');
+                        });
+                        container.querySelectorAll('.tab-content').forEach(function(c) {
+                            c.classList.remove('active');
+                        });
+                        
+                        // Add active class to clicked tab and corresponding content
+                        this.classList.add('active');
+                        container.querySelector('#' + this.getAttribute('data-tab') + '-tab').classList.add('active');
                     });
-                    document.querySelectorAll('.tab-content').forEach(function(c) {
-                        c.classList.remove('active');
-                    });
-                    
-                    // Add active class to clicked tab and corresponding content
-                    this.classList.add('active');
-                    document.getElementById(this.getAttribute('data-tab') + '-tab').classList.add('active');
                 });
-            });
+            }
+            
+            setupTabs(reposContainer);
+            setupTabs(repoEditContainer);
             
             // Event listeners
             loginBtn.addEventListener('click', login);
@@ -217,7 +296,27 @@
                 repoEditContainer.style.display = 'none';
                 reposContainer.style.display = 'block';
                 currentRepo = null;
+                currentPath = '';
             });
+            
+            newFileBtn.addEventListener('click', function() {
+                fileBrowser.style.display = 'none';
+                fileEditor.style.display = 'none';
+                fileCreate.style.display = 'block';
+                newFileName.value = '';
+                newFileContent.value = '';
+                fileCreateStatus.innerHTML = '';
+            });
+            
+            refreshFilesBtn.addEventListener('click', function() {
+                browseFiles(currentPath);
+            });
+            
+            saveFileBtn.addEventListener('click', saveFile);
+            cancelEditFileBtn.addEventListener('click', cancelEditFile);
+            deleteFileBtn.addEventListener('click', deleteFile);
+            createFileBtn.addEventListener('click', createFile);
+            cancelCreateFileBtn.addEventListener('click', cancelCreateFile);
             
             // Check if already logged in (from sessionStorage)
             if (sessionStorage.getItem('githubToken')) {
@@ -264,7 +363,9 @@
                 sessionStorage.removeItem('githubToken');
                 sessionStorage.removeItem('githubUser');
                 
-                document.querySelector('.auth-section').style.display = 'none';
+                document.querySelectorAll('.auth-section').forEach(function(el) {
+                    el.style.display = 'none';
+                });
                 document.getElementById('authContainer').style.display = 'block';
                 usernameInput.value = '';
                 tokenInput.value = '';
@@ -303,7 +404,7 @@
                                 '<div class="repo-desc">' + (repo.description || 'No description') + '</div>' +
                                 '<div>Stars: ' + repo.stargazers_count + ' | Forks: ' + repo.forks_count + ' | ' + 
                                 (repo.private ? 'Private' : 'Public') + '</div>' +
-                                '<button onclick="editRepository(\'' + repo.owner.login + '\', \'' + repo.name + '\')">Edit</button>' +
+                                '<button onclick="editRepository(\'' + repo.owner.login + '\', \'' + repo.name + '\')">Manage</button>' +
                                 '</div>';
                     });
                     
@@ -368,10 +469,17 @@
             
             function editRepository(owner, repoName) {
                 currentRepo = { owner: owner, name: repoName };
+                currentPath = '';
                 
                 githubRequest('GET', 'https://api.github.com/repos/' + owner + '/' + repoName, null, function(repo) {
                     editRepoName.textContent = repoName;
                     editRepoDesc.value = repo.description || '';
+                    
+                    // Set up breadcrumb
+                    updateBreadcrumb();
+                    
+                    // Load root directory
+                    browseFiles('');
                     
                     reposContainer.style.display = 'none';
                     repoEditContainer.style.display = 'block';
@@ -387,8 +495,9 @@
                 var newDescription = editRepoDesc.value.trim();
                 
                 var data = {
-                    name: currentRepo.name,
-                    description: newDescription
+                    name: currentRepo.name,  // Include name to fix validation error
+                    description: newDescription,
+                    private: false  // Include private flag if needed
                 };
                 
                 repoEditStatus.innerHTML = '<div class="loading">Updating repository...</div>';
@@ -397,7 +506,8 @@
                     repoEditStatus.innerHTML = '<div class="success">Repository updated successfully!</div>';
                     loadRepositories();
                 }, function(error) {
-                    repoEditStatus.innerHTML = '<div class="error">Failed to update repository: ' + (error.message || 'Unknown error') + '</div>';
+                    repoEditStatus.innerHTML = '<div class="error">Failed to update repository: ' + (error.message || 'Unknown error') + 
+                                              (error.errors ? ' - ' + JSON.stringify(error.errors) : '') + '</div>';
                 });
             }
             
@@ -416,11 +526,175 @@
                         repoEditContainer.style.display = 'none';
                         reposContainer.style.display = 'block';
                         currentRepo = null;
+                        currentPath = '';
                         loadRepositories();
                     }, 1500);
                 }, function(error) {
                     repoEditStatus.innerHTML = '<div class="error">Failed to delete repository: ' + (error.message || 'Unknown error') + '</div>';
                 });
+            }
+            
+            function browseFiles(path) {
+                fileBrowser.innerHTML = '<div class="loading">Loading files...</div>';
+                
+                githubRequest('GET', 'https://api.github.com/repos/' + currentRepo.owner + '/' + currentRepo.name + '/contents/' + path, null, function(contents) {
+                    if (!Array.isArray(contents)) {
+                        contents = [contents];
+                    }
+                    
+                    var html = '';
+                    
+                    // Add parent directory link if not at root
+                    if (path) {
+                        var parentPath = path.split('/').slice(0, -1).join('/');
+                        html += '<div class="file-item">' +
+                                '<div class="file-name"><a href="javascript:void(0)" onclick="browseFiles(\'' + parentPath + '\')">../</a></div>' +
+                                '<div class="file-content">Parent directory</div>' +
+                                '</div>';
+                    }
+                    
+                    contents.forEach(function(item) {
+                        if (item.type === 'dir') {
+                            html += '<div class="file-item">' +
+                                    '<div class="file-name"><a href="javascript:void(0)" onclick="browseFiles(\'' + (path ? path + '/' : '') + item.name + '\')">' + item.name + '/</a></div>' +
+                                    '<div class="file-content">Directory</div>' +
+                                    '</div>';
+                        } else {
+                            html += '<div class="file-item">' +
+                                    '<div class="file-name"><a href="javascript:void(0)" onclick="viewFile(\'' + (path ? path + '/' : '') + item.name + '\', \'' + item.sha + '\')">' + item.name + '</a></div>' +
+                                    '<div class="file-content">' + (item.size ? (item.size + ' bytes') : 'File') + '</div>' +
+                                    '</div>';
+                        }
+                    });
+                    
+                    fileBrowser.innerHTML = html;
+                    fileBrowser.style.display = 'block';
+                    fileEditor.style.display = 'none';
+                    fileCreate.style.display = 'none';
+                    
+                    // Update current path and breadcrumb
+                    currentPath = path;
+                    updateBreadcrumb();
+                }, function(error) {
+                    fileBrowser.innerHTML = '<div class="error">Failed to load files: ' + (error.message || 'Unknown error') + '</div>';
+                });
+            }
+            
+            function viewFile(path, sha) {
+                currentFile = path;
+                currentFileSha = sha;
+                
+                githubRequest('GET', 'https://api.github.com/repos/' + currentRepo.owner + '/' + currentRepo.name + '/contents/' + path, null, function(file) {
+                    // Decode base64 content
+                    var content = atob(file.content.replace(/\s/g, ''));
+                    
+                    fileContentEditor.value = content;
+                    fileBrowser.style.display = 'none';
+                    fileEditor.style.display = 'block';
+                    fileCreate.style.display = 'none';
+                    fileEditStatus.innerHTML = '';
+                }, function(error) {
+                    fileEditStatus.innerHTML = '<div class="error">Failed to load file: ' + (error.message || 'Unknown error') + '</div>';
+                });
+            }
+            
+            function saveFile() {
+                if (!currentFile || !currentFileSha) return;
+                
+                var newContent = fileContentEditor.value;
+                var encodedContent = btoa(newContent);
+                
+                var data = {
+                    message: 'Update ' + currentFile,
+                    content: encodedContent,
+                    sha: currentFileSha
+                };
+                
+                fileEditStatus.innerHTML = '<div class="loading">Saving file...</div>';
+                
+                githubRequest('PUT', 'https://api.github.com/repos/' + currentRepo.owner + '/' + currentRepo.name + '/contents/' + currentFile, data, function() {
+                    fileEditStatus.innerHTML = '<div class="success">File saved successfully!</div>';
+                    setTimeout(function() {
+                        browseFiles(currentPath);
+                    }, 1000);
+                }, function(error) {
+                    fileEditStatus.innerHTML = '<div class="error">Failed to save file: ' + (error.message || 'Unknown error') + '</div>';
+                });
+            }
+            
+            function cancelEditFile() {
+                browseFiles(currentPath);
+            }
+            
+            function deleteFile() {
+                if (!currentFile || !currentFileSha) return;
+                
+                if (!confirm('Are you sure you want to delete this file?')) {
+                    return;
+                }
+                
+                var data = {
+                    message: 'Delete ' + currentFile,
+                    sha: currentFileSha
+                };
+                
+                fileEditStatus.innerHTML = '<div class="loading">Deleting file...</div>';
+                
+                githubRequest('DELETE', 'https://api.github.com/repos/' + currentRepo.owner + '/' + currentRepo.name + '/contents/' + currentFile, data, function() {
+                    fileEditStatus.innerHTML = '<div class="success">File deleted successfully!</div>';
+                    setTimeout(function() {
+                        browseFiles(currentPath);
+                    }, 1000);
+                }, function(error) {
+                    fileEditStatus.innerHTML = '<div class="error">Failed to delete file: ' + (error.message || 'Unknown error') + '</div>';
+                });
+            }
+            
+            function createFile() {
+                var path = newFileName.value.trim();
+                var content = newFileContent.value;
+                
+                if (!path) {
+                    fileCreateStatus.innerHTML = '<div class="error">File path is required</div>';
+                    return;
+                }
+                
+                var encodedContent = btoa(content);
+                
+                var data = {
+                    message: 'Create ' + path,
+                    content: encodedContent
+                };
+                
+                fileCreateStatus.innerHTML = '<div class="loading">Creating file...</div>';
+                
+                githubRequest('PUT', 'https://api.github.com/repos/' + currentRepo.owner + '/' + currentRepo.name + '/contents/' + path, data, function() {
+                    fileCreateStatus.innerHTML = '<div class="success">File created successfully!</div>';
+                    setTimeout(function() {
+                        browseFiles(currentPath);
+                    }, 1000);
+                }, function(error) {
+                    fileCreateStatus.innerHTML = '<div class="error">Failed to create file: ' + (error.message || 'Unknown error') + '</div>';
+                });
+            }
+            
+            function cancelCreateFile() {
+                browseFiles(currentPath);
+            }
+            
+            function updateBreadcrumb() {
+                var parts = currentPath.split('/');
+                var breadcrumb = '<a href="javascript:void(0)" onclick="browseFiles(\'\')">' + currentRepo.name + '</a>';
+                
+                var currentPathPart = '';
+                parts.forEach(function(part, index) {
+                    if (part) {
+                        currentPathPart += (currentPathPart ? '/' : '') + part;
+                        breadcrumb += ' / <a href="javascript:void(0)" onclick="browseFiles(\'' + currentPathPart + '\')">' + part + '</a>';
+                    }
+                });
+                
+                repoBreadcrumb.innerHTML = breadcrumb;
             }
             
             // Make GitHub API requests
@@ -457,6 +731,8 @@
             
             // Make functions available globally for button onclick handlers
             window.editRepository = editRepository;
+            window.browseFiles = browseFiles;
+            window.viewFile = viewFile;
             window.loadUserRepos = function(username) {
                 userSearchResults.innerHTML = '<div class="loading">Loading repositories...</div>';
                 
