@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Client for KitKat</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 10px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .container {
+            background-color: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-bottom: 15px;
+        }
+        input, textarea, button, select {
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:disabled {
+            background-color: #cccccc;
+        }
+        button.danger {
+            background-color: #d73a49;
+        }
+        .repo-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .repo-item:last-child {
+            border-bottom: none;
+        }
+        .repo-name {
+            font-weight: bold;
+            color: #0366d6;
+        }
+        .repo-desc {
+            color: #666;
+            font-size: 0.9em;
+        }
+        .error {
+            color: #d73a49;
+            font-weight: bold;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .loading {
+            text-align: center;
+            color: #666;
+        }
+        .auth-section, .repo-section {
+            display: none;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 15px;
+        }
+        .tab {
+            padding: 10px 15px;
+            background-color: #eee;
+            cursor: pointer;
+            margin-right: 5px;
+        }
+        .tab.active {
+            background-color: white;
+            font-weight: bold;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <h1>GitHub Client</h1>
+    
+    <div class="container" id="authContainer">
+        <h2>Authentication</h2>
+        <div>
+            <p>Note: For security, use a personal access token (PAT) instead of password.</p>
+            <input type="text" id="username" placeholder="GitHub username" />
+            <input type="password" id="token" placeholder="Personal Access Token" />
+            <button id="loginBtn">Login</button>
+            <div id="authStatus"></div>
+        </div>
+    </div>
+    
+    <div class="container auth-section" id="userContainer">
+        <h2>Welcome, <span id="userName"></span></h2>
+        <button id="logoutBtn" class="danger">Logout</button>
+    </div>
+    
+    <div class="container auth-section" id="reposContainer">
+        <div class="tabs">
+            <div class="tab active" data-tab="repos">My Repositories</div>
+            <div class="tab" data-tab="create">Create Repository</div>
+            <div class="tab" data-tab="search">Search Users</div>
+        </div>
+        
+        <div class="tab-content active" id="repos-tab">
+            <button id="refreshReposBtn">Refresh Repositories</button>
+            <div id="reposList"></div>
+        </div>
+        
+        <div class="tab-content" id="create-tab">
+            <input type="text" id="newRepoName" placeholder="Repository name" />
+            <textarea id="newRepoDesc" placeholder="Description"></textarea>
+            <select id="newRepoVisibility">
+                <option value="public">Public</option>
+                <option value="private">Private</option>
+            </select>
+            <button id="createRepoBtn">Create Repository</button>
+            <div id="createRepoStatus"></div>
+        </div>
+        
+        <div class="tab-content" id="search-tab">
+            <input type="text" id="searchUser" placeholder="GitHub username" />
+            <button id="searchUserBtn">Search User</button>
+            <div id="userSearchResults"></div>
+        </div>
+    </div>
+    
+    <div class="container auth-section" id="repoEditContainer" style="display: none;">
+        <h2>Edit Repository: <span id="editRepoName"></span></h2>
+        <textarea id="editRepoDesc" placeholder="Description"></textarea>
+        <button id="updateRepoBtn">Update Repository</button>
+        <button id="deleteRepoBtn" class="danger">Delete Repository</button>
+        <button id="backToReposBtn">Back to Repositories</button>
+        <div id="repoEditStatus"></div>
+    </div>
+
+    <script>
+        // Global variables
+        var authToken = null;
+        var currentUser = null;
+        var currentRepo = null;
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // DOM elements
+            var loginBtn = document.getElementById('loginBtn');
+            var logoutBtn = document.getElementById('logoutBtn');
+            var usernameInput = document.getElementById('username');
+            var tokenInput = document.getElementById('token');
+            var authStatus = document.getElementById('authStatus');
+            var userContainer = document.getElementById('userContainer');
+            var reposContainer = document.getElementById('reposContainer');
+            var userNameSpan = document.getElementById('userName');
+            var reposList = document.getElementById('reposList');
+            var refreshReposBtn = document.getElementById('refreshReposBtn');
+            var createRepoBtn = document.getElementById('createRepoBtn');
+            var newRepoName = document.getElementById('newRepoName');
+            var newRepoDesc = document.getElementById('newRepoDesc');
+            var newRepoVisibility = document.getElementById('newRepoVisibility');
+            var createRepoStatus = document.getElementById('createRepoStatus');
+            var searchUserBtn = document.getElementById('searchUserBtn');
+            var searchUserInput = document.getElementById('searchUser');
+            var userSearchResults = document.getElementById('userSearchResults');
+            var repoEditContainer = document.getElementById('repoEditContainer');
+            var editRepoName = document.getElementById('editRepoName');
+            var editRepoDesc = document.getElementById('editRepoDesc');
+            var updateRepoBtn = document.getElementById('updateRepoBtn');
+            var deleteRepoBtn = document.getElementById('deleteRepoBtn');
+            var backToReposBtn = document.getElementById('backToReposBtn');
+            var repoEditStatus = document.getElementById('repoEditStatus');
+            
+            // Tab switching
+            var tabs = document.querySelectorAll('.tab');
+            tabs.forEach(function(tab) {
+                tab.addEventListener('click', function() {
+                    // Remove active class from all tabs and contents
+                    document.querySelectorAll('.tab').forEach(function(t) {
+                        t.classList.remove('active');
+                    });
+                    document.querySelectorAll('.tab-content').forEach(function(c) {
+                        c.classList.remove('active');
+                    });
+                    
+                    // Add active class to clicked tab and corresponding content
+                    this.classList.add('active');
+                    document.getElementById(this.getAttribute('data-tab') + '-tab').classList.add('active');
+                });
+            });
+            
+            // Event listeners
+            loginBtn.addEventListener('click', login);
+            logoutBtn.addEventListener('click', logout);
+            refreshReposBtn.addEventListener('click', loadRepositories);
+            createRepoBtn.addEventListener('click', createRepository);
+            searchUserBtn.addEventListener('click', searchGitHubUser);
+            updateRepoBtn.addEventListener('click', updateRepository);
+            deleteRepoBtn.addEventListener('click', deleteRepository);
+            backToReposBtn.addEventListener('click', function() {
+                repoEditContainer.style.display = 'none';
+                reposContainer.style.display = 'block';
+                currentRepo = null;
+            });
+            
+            // Check if already logged in (from sessionStorage)
+            if (sessionStorage.getItem('githubToken')) {
+                authToken = sessionStorage.getItem('githubToken');
+                currentUser = sessionStorage.getItem('githubUser');
+                showAuthenticatedUI();
+                loadUserDetails();
+                loadRepositories();
+            }
+            
+            function login() {
+                var username = usernameInput.value.trim();
+                var token = tokenInput.value.trim();
+                
+                if (!username || !token) {
+                    authStatus.innerHTML = '<div class="error">Please enter both username and token</div>';
+                    return;
+                }
+                
+                authToken = token;
+                currentUser = username;
+                
+                // Verify credentials by fetching user details
+                githubRequest('GET', 'https://api.github.com/user', null, function(response) {
+                    // Success - save to session storage
+                    sessionStorage.setItem('githubToken', authToken);
+                    sessionStorage.setItem('githubUser', currentUser);
+                    
+                    showAuthenticatedUI();
+                    loadUserDetails();
+                    loadRepositories();
+                    
+                    authStatus.innerHTML = '<div class="success">Login successful!</div>';
+                }, function(error) {
+                    authToken = null;
+                    currentUser = null;
+                    authStatus.innerHTML = '<div class="error">Login failed: ' + (error.message || 'Invalid credentials') + '</div>';
+                });
+            }
+            
+            function logout() {
+                authToken = null;
+                currentUser = null;
+                sessionStorage.removeItem('githubToken');
+                sessionStorage.removeItem('githubUser');
+                
+                document.querySelector('.auth-section').style.display = 'none';
+                document.getElementById('authContainer').style.display = 'block';
+                usernameInput.value = '';
+                tokenInput.value = '';
+                authStatus.innerHTML = '<div class="success">Logged out successfully</div>';
+            }
+            
+            function showAuthenticatedUI() {
+                document.getElementById('authContainer').style.display = 'none';
+                document.querySelectorAll('.auth-section').forEach(function(el) {
+                    el.style.display = 'block';
+                });
+                userNameSpan.textContent = currentUser;
+            }
+            
+            function loadUserDetails() {
+                githubRequest('GET', 'https://api.github.com/user', null, function(user) {
+                    userNameSpan.textContent = user.login || currentUser;
+                }, function(error) {
+                    console.error('Failed to load user details:', error);
+                });
+            }
+            
+            function loadRepositories() {
+                reposList.innerHTML = '<div class="loading">Loading repositories...</div>';
+                
+                githubRequest('GET', 'https://api.github.com/user/repos?sort=updated', null, function(repos) {
+                    if (repos.length === 0) {
+                        reposList.innerHTML = '<div>No repositories found.</div>';
+                        return;
+                    }
+                    
+                    var html = '';
+                    repos.forEach(function(repo) {
+                        html += '<div class="repo-item">' +
+                                '<div class="repo-name"><a href="' + repo.html_url + '" target="_blank">' + repo.name + '</a></div>' +
+                                '<div class="repo-desc">' + (repo.description || 'No description') + '</div>' +
+                                '<div>Stars: ' + repo.stargazers_count + ' | Forks: ' + repo.forks_count + ' | ' + 
+                                (repo.private ? 'Private' : 'Public') + '</div>' +
+                                '<button onclick="editRepository(\'' + repo.owner.login + '\', \'' + repo.name + '\')">Edit</button>' +
+                                '</div>';
+                    });
+                    
+                    reposList.innerHTML = html;
+                }, function(error) {
+                    reposList.innerHTML = '<div class="error">Failed to load repositories: ' + (error.message || 'Unknown error') + '</div>';
+                });
+            }
+            
+            function createRepository() {
+                var name = newRepoName.value.trim();
+                var description = newRepoDesc.value.trim();
+                var isPrivate = newRepoVisibility.value === 'private';
+                
+                if (!name) {
+                    createRepoStatus.innerHTML = '<div class="error">Repository name is required</div>';
+                    return;
+                }
+                
+                var data = {
+                    name: name,
+                    description: description,
+                    private: isPrivate,
+                    auto_init: true
+                };
+                
+                createRepoStatus.innerHTML = '<div class="loading">Creating repository...</div>';
+                
+                githubRequest('POST', 'https://api.github.com/user/repos', data, function(repo) {
+                    createRepoStatus.innerHTML = '<div class="success">Repository created successfully! <a href="' + repo.html_url + '" target="_blank">View on GitHub</a></div>';
+                    newRepoName.value = '';
+                    newRepoDesc.value = '';
+                    loadRepositories();
+                }, function(error) {
+                    createRepoStatus.innerHTML = '<div class="error">Failed to create repository: ' + (error.message || 'Unknown error') + '</div>';
+                });
+            }
+            
+            function searchGitHubUser() {
+                var username = searchUserInput.value.trim();
+                
+                if (!username) {
+                    userSearchResults.innerHTML = '<div class="error">Please enter a username</div>';
+                    return;
+                }
+                
+                userSearchResults.innerHTML = '<div class="loading">Searching for user...</div>';
+                
+                githubRequest('GET', 'https://api.github.com/users/' + encodeURIComponent(username), null, function(user) {
+                    var html = '<h3>' + user.login + '</h3>' +
+                               '<img src="' + user.avatar_url + '" width="100" style="border-radius:50%;"><br>' +
+                               '<p>' + (user.name || '') + '</p>' +
+                               '<p>' + (user.bio || '') + '</p>' +
+                               '<p>Followers: ' + user.followers + ' | Following: ' + user.following + '</p>' +
+                               '<button onclick="loadUserRepos(\'' + user.login + '\')">View Repositories</button>';
+                    
+                    userSearchResults.innerHTML = html;
+                }, function(error) {
+                    userSearchResults.innerHTML = '<div class="error">User not found: ' + username + '</div>';
+                });
+            }
+            
+            function editRepository(owner, repoName) {
+                currentRepo = { owner: owner, name: repoName };
+                
+                githubRequest('GET', 'https://api.github.com/repos/' + owner + '/' + repoName, null, function(repo) {
+                    editRepoName.textContent = repoName;
+                    editRepoDesc.value = repo.description || '';
+                    
+                    reposContainer.style.display = 'none';
+                    repoEditContainer.style.display = 'block';
+                    repoEditStatus.innerHTML = '';
+                }, function(error) {
+                    repoEditStatus.innerHTML = '<div class="error">Failed to load repository details</div>';
+                });
+            }
+            
+            function updateRepository() {
+                if (!currentRepo) return;
+                
+                var newDescription = editRepoDesc.value.trim();
+                
+                var data = {
+                    name: currentRepo.name,
+                    description: newDescription
+                };
+                
+                repoEditStatus.innerHTML = '<div class="loading">Updating repository...</div>';
+                
+                githubRequest('PATCH', 'https://api.github.com/repos/' + currentRepo.owner + '/' + currentRepo.name, data, function(repo) {
+                    repoEditStatus.innerHTML = '<div class="success">Repository updated successfully!</div>';
+                    loadRepositories();
+                }, function(error) {
+                    repoEditStatus.innerHTML = '<div class="error">Failed to update repository: ' + (error.message || 'Unknown error') + '</div>';
+                });
+            }
+            
+            function deleteRepository() {
+                if (!currentRepo) return;
+                
+                if (!confirm('Are you sure you want to delete this repository? This action cannot be undone.')) {
+                    return;
+                }
+                
+                repoEditStatus.innerHTML = '<div class="loading">Deleting repository...</div>';
+                
+                githubRequest('DELETE', 'https://api.github.com/repos/' + currentRepo.owner + '/' + currentRepo.name, null, function() {
+                    repoEditStatus.innerHTML = '<div class="success">Repository deleted successfully!</div>';
+                    setTimeout(function() {
+                        repoEditContainer.style.display = 'none';
+                        reposContainer.style.display = 'block';
+                        currentRepo = null;
+                        loadRepositories();
+                    }, 1500);
+                }, function(error) {
+                    repoEditStatus.innerHTML = '<div class="error">Failed to delete repository: ' + (error.message || 'Unknown error') + '</div>';
+                });
+            }
+            
+            // Make GitHub API requests
+            function githubRequest(method, url, data, successCallback, errorCallback) {
+                var xhr = new XMLHttpRequest();
+                xhr.open(method, url);
+                xhr.setRequestHeader('Accept', 'application/vnd.github.v3+json');
+                
+                if (authToken) {
+                    xhr.setRequestHeader('Authorization', 'token ' + authToken);
+                }
+                
+                xhr.onload = function() {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        var response = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+                        if (successCallback) successCallback(response);
+                    } else {
+                        var error = xhr.responseText ? JSON.parse(xhr.responseText) : { message: 'HTTP error ' + xhr.status };
+                        if (errorCallback) errorCallback(error);
+                    }
+                };
+                
+                xhr.onerror = function() {
+                    if (errorCallback) errorCallback({ message: 'Network error' });
+                };
+                
+                if (data) {
+                    xhr.setRequestHeader('Content-Type', 'application/json');
+                    xhr.send(JSON.stringify(data));
+                } else {
+                    xhr.send();
+                }
+            }
+            
+            // Make functions available globally for button onclick handlers
+            window.editRepository = editRepository;
+            window.loadUserRepos = function(username) {
+                userSearchResults.innerHTML = '<div class="loading">Loading repositories...</div>';
+                
+                githubRequest('GET', 'https://api.github.com/users/' + encodeURIComponent(username) + '/repos', null, function(repos) {
+                    if (repos.length === 0) {
+                        userSearchResults.innerHTML += '<div>No repositories found for this user.</div>';
+                        return;
+                    }
+                    
+                    var html = '<h3>' + username + '\'s Repositories</h3>';
+                    repos.forEach(function(repo) {
+                        html += '<div class="repo-item">' +
+                                '<div class="repo-name"><a href="' + repo.html_url + '" target="_blank">' + repo.name + '</a></div>' +
+                                '<div class="repo-desc">' + (repo.description || 'No description') + '</div>' +
+                                '<div>Stars: ' + repo.stargazers_count + ' | Forks: ' + repo.forks_count + '</div>' +
+                                '</div>';
+                    });
+                    
+                    userSearchResults.innerHTML = html;
+                }, function(error) {
+                    userSearchResults.innerHTML += '<div class="error">Failed to load repositories: ' + (error.message || 'Unknown error') + '</div>';
+                });
+            };
+        });
+    </script>
+</body>
+</html>
