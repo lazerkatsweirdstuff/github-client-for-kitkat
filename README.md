@@ -1,7 +1,7 @@
 # github-client-for-kitkat
 A GitHub client for android KitKat (4.4+)
 
-_Website: (Site)[https://lazerkatsweirdstuff.github.io/github-client-for-kitkat/]_
+_Website: [https://lazerkatsweirdstuff.github.io/github-client-for-kitkat/](Site)_
 # PLEASE READ THE HOW TO USE SECTION HERE
 
 ### _Step 1: Create PAT_
