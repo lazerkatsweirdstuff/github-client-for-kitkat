@@ -54,18 +54,23 @@
         button.download {
             background-color: #6f42c1;
         }
-        .repo-item, .file-item, .collab-item, .release-item {
+        button.star {
+            background-color: #ffac33;
+        }
+        .repo-item, .file-item, .collab-item, .release-item, .issue-item, .deployment-item, .user-item {
             padding: 10px;
             border-bottom: 1px solid #eee;
         }
-        .repo-item:last-child, .file-item:last-child, .collab-item:last-child, .release-item:last-child {
+        .repo-item:last-child, .file-item:last-child, .collab-item:last-child, 
+        .release-item:last-child, .issue-item:last-child, .deployment-item:last-child,
+        .user-item:last-child {
             border-bottom: none;
         }
-        .repo-name, .file-name, .collab-name, .release-name {
+        .repo-name, .file-name, .collab-name, .release-name, .issue-name {
             font-weight: bold;
             color: #0366d6;
         }
-        .repo-desc, .file-content, .collab-role, .release-desc {
+        .repo-desc, .file-content, .collab-role, .release-desc, .issue-desc {
             color: #666;
             font-size: 0.9em;
         }
@@ -137,7 +142,7 @@
             max-width: 100%;
             margin: 10px 0;
         }
-        .collab-avatar {
+        .collab-avatar, .user-avatar {
             width: 50px;
             height: 50px;
             border-radius: 50%;
@@ -154,6 +159,73 @@
             margin-top: 5px;
             color: #0366d6;
             text-decoration: none;
+        }
+        .user-profile {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .user-info {
+            margin-left: 15px;
+        }
+        .user-name {
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        .user-login {
+            color: #586069;
+        }
+        .user-bio {
+            margin: 10px 0;
+        }
+        .user-stats {
+            display: flex;
+            margin-bottom: 10px;
+        }
+        .user-stat {
+            margin-right: 15px;
+        }
+        .org-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            margin-right: 5px;
+            vertical-align: middle;
+        }
+        .issue-label {
+            display: inline-block;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 0.8em;
+            margin-right: 5px;
+            color: white;
+        }
+        .deployment-status {
+            display: inline-block;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 0.8em;
+            margin-right: 5px;
+        }
+        .status-success {
+            background-color: #28a745;
+            color: white;
+        }
+        .status-pending {
+            background-color: #ffd33d;
+            color: black;
+        }
+        .status-failure {
+            background-color: #d73a49;
+            color: white;
+        }
+        .gh-pages-actions {
+            background-color: #f6f8fa;
+            padding: 10px;
+            border-radius: 3px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 0.9em;
         }
     </style>
 </head>
@@ -181,6 +253,7 @@
             <div class="tab active" data-tab="repos">My Repositories</div>
             <div class="tab" data-tab="create">Create Repository</div>
             <div class="tab" data-tab="search">Search Users/Repos</div>
+            <div class="tab" data-tab="starred">Starred Repos</div>
         </div>
         
         <div class="tab-content active" id="repos-tab">
@@ -205,17 +278,28 @@
             <button id="searchRepoBtn">Search Repos</button>
             <div id="searchResults"></div>
         </div>
+        
+        <div class="tab-content" id="starred-tab">
+            <button id="refreshStarredBtn">Refresh Starred</button>
+            <div id="starredRepos"></div>
+        </div>
     </div>
     
     <div class="container auth-section" id="repoEditContainer" style="display: none;">
         <div class="breadcrumb" id="repoBreadcrumb"></div>
-        <h2>Repository: <span id="editRepoName"></span></h2>
+        <h2>Repository: <span id="editRepoName"></span> 
+            <button id="starRepoBtn" class="star" style="display: none;">⭐ Star</button>
+            <button id="unstarRepoBtn" class="star" style="display: none;">★ Unstar</button>
+        </h2>
         
         <div class="tabs">
             <div class="tab active" data-tab="repo-info">Repository Info</div>
             <div class="tab" data-tab="repo-files">Files</div>
             <div class="tab" data-tab="repo-collabs">Collaborators</div>
             <div class="tab" data-tab="repo-releases">Releases</div>
+            <div class="tab" data-tab="repo-issues">Issues</div>
+            <div class="tab" data-tab="repo-deployments">Deployments</div>
+            <div class="tab" data-tab="repo-pages">GitHub Pages</div>
         </div>
         
         <div class="tab-content active" id="repo-info-tab">
@@ -243,6 +327,7 @@
                 <div class="file-actions">
                     <button id="saveFileBtn">Save File</button>
                     <button id="renameFileBtn" class="info">Rename File</button>
+                    <button id="backToFilesBtn" class="secondary">Back to Files</button>
                     <button id="cancelEditFileBtn" class="secondary">Cancel</button>
                     <button id="deleteFileBtn" class="danger">Delete File</button>
                     <button id="downloadBtn" class="download">Download</button>
@@ -288,6 +373,64 @@
                 <button id="backToReposFromReleasesBtn">Back to Repositories</button>
             </div>
         </div>
+        
+        <div class="tab-content" id="repo-issues-tab">
+            <div id="issuesList"></div>
+            <div class="file-actions">
+                <button id="refreshIssuesBtn">Refresh Issues</button>
+                <button id="backToReposFromIssuesBtn">Back to Repositories</button>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="repo-deployments-tab">
+            <div id="deploymentsList"></div>
+            <div class="file-actions">
+                <button id="refreshDeploymentsBtn">Refresh Deployments</button>
+                <button id="backToReposFromDeploymentsBtn">Back to Repositories</button>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="repo-pages-tab">
+            <div id="ghPagesInfo"></div>
+            <div class="gh-pages-actions">
+                <p>To enable GitHub Pages:</p>
+                <ol>
+                    <li>Create a branch named 'gh-pages' or use docs/ folder on main branch</li>
+                    <li>Add a basic index.html file</li>
+                    <li>GitHub will automatically publish your site</li>
+                </ol>
+                <p>Or create this GitHub Actions workflow:</p>
+                <pre>name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: echo "Your build commands here" > build.sh
+      - run: chmod +x build.sh
+      - run: ./build.sh
+      - uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public</pre>
+            </div>
+            <div class="file-actions">
+                <button id="refreshPagesBtn">Refresh Pages Info</button>
+                <button id="backToReposFromPagesBtn">Back to Repositories</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="container auth-section" id="userProfileContainer" style="display: none;">
+        <div id="userProfileContent"></div>
+        <div class="file-actions">
+            <button id="backFromUserProfileBtn">Back</button>
+        </div>
     </div>
 
     <script>
@@ -300,6 +443,7 @@
         var currentFileSha = null;
         var isViewingExternalRepo = false;
         var currentDownloadUrl = null;
+        var isRepoStarred = false;
         
         document.addEventListener('DOMContentLoaded', function() {
             // DOM elements
@@ -322,9 +466,13 @@
             var searchRepoBtn = document.getElementById('searchRepoBtn');
             var searchQuery = document.getElementById('searchQuery');
             var searchResults = document.getElementById('searchResults');
+            var starredRepos = document.getElementById('starredRepos');
+            var refreshStarredBtn = document.getElementById('refreshStarredBtn');
             var repoEditContainer = document.getElementById('repoEditContainer');
             var editRepoName = document.getElementById('editRepoName');
             var editRepoDesc = document.getElementById('editRepoDesc');
+            var starRepoBtn = document.getElementById('starRepoBtn');
+            var unstarRepoBtn = document.getElementById('unstarRepoBtn');
             var updateRepoBtn = document.getElementById('updateRepoBtn');
             var deleteRepoBtn = document.getElementById('deleteRepoBtn');
             var backToReposBtn = document.getElementById('backToReposBtn');
@@ -341,6 +489,7 @@
             var downloadFileBtn = document.getElementById('downloadFileBtn');
             var saveFileBtn = document.getElementById('saveFileBtn');
             var renameFileBtn = document.getElementById('renameFileBtn');
+            var backToFilesBtn = document.getElementById('backToFilesBtn');
             var cancelEditFileBtn = document.getElementById('cancelEditFileBtn');
             var deleteFileBtn = document.getElementById('deleteFileBtn');
             var downloadBtn = document.getElementById('downloadBtn');
@@ -365,6 +514,18 @@
             var releasesList = document.getElementById('releasesList');
             var refreshReleasesBtn = document.getElementById('refreshReleasesBtn');
             var backToReposFromReleasesBtn = document.getElementById('backToReposFromReleasesBtn');
+            var issuesList = document.getElementById('issuesList');
+            var refreshIssuesBtn = document.getElementById('refreshIssuesBtn');
+            var backToReposFromIssuesBtn = document.getElementById('backToReposFromIssuesBtn');
+            var deploymentsList = document.getElementById('deploymentsList');
+            var refreshDeploymentsBtn = document.getElementById('refreshDeploymentsBtn');
+            var backToReposFromDeploymentsBtn = document.getElementById('backToReposFromDeploymentsBtn');
+            var ghPagesInfo = document.getElementById('ghPagesInfo');
+            var refreshPagesBtn = document.getElementById('refreshPagesBtn');
+            var backToReposFromPagesBtn = document.getElementById('backToReposFromPagesBtn');
+            var userProfileContainer = document.getElementById('userProfileContainer');
+            var userProfileContent = document.getElementById('userProfileContent');
+            var backFromUserProfileBtn = document.getElementById('backFromUserProfileBtn');
             
             // Tab switching
             function setupTabs(container) {
@@ -393,9 +554,12 @@
             loginBtn.addEventListener('click', login);
             logoutBtn.addEventListener('click', logout);
             refreshReposBtn.addEventListener('click', loadRepositories);
+            refreshStarredBtn.addEventListener('click', loadStarredRepos);
             createRepoBtn.addEventListener('click', createRepository);
             searchUserBtn.addEventListener('click', function() { searchGitHub('users'); });
             searchRepoBtn.addEventListener('click', function() { searchGitHub('repos'); });
+            starRepoBtn.addEventListener('click', starRepository);
+            unstarRepoBtn.addEventListener('click', unstarRepository);
             updateRepoBtn.addEventListener('click', updateRepository);
             deleteRepoBtn.addEventListener('click', deleteRepository);
             backToReposBtn.addEventListener('click', backToRepositories);
@@ -416,6 +580,9 @@
             
             saveFileBtn.addEventListener('click', saveFile);
             renameFileBtn.addEventListener('click', showRenameFile);
+            backToFilesBtn.addEventListener('click', function() {
+                browseFiles(currentPath);
+            });
             cancelEditFileBtn.addEventListener('click', cancelEditFile);
             deleteFileBtn.addEventListener('click', deleteFile);
             downloadBtn.addEventListener('click', downloadCurrentFile);
@@ -428,6 +595,20 @@
             backToReposFromCollabsBtn.addEventListener('click', backToRepositories);
             refreshReleasesBtn.addEventListener('click', loadReleases);
             backToReposFromReleasesBtn.addEventListener('click', backToRepositories);
+            refreshIssuesBtn.addEventListener('click', loadIssues);
+            backToReposFromIssuesBtn.addEventListener('click', backToRepositories);
+            refreshDeploymentsBtn.addEventListener('click', loadDeployments);
+            backToReposFromDeploymentsBtn.addEventListener('click', backToRepositories);
+            refreshPagesBtn.addEventListener('click', loadPagesInfo);
+            backToReposFromPagesBtn.addEventListener('click', backToRepositories);
+            backFromUserProfileBtn.addEventListener('click', function() {
+                userProfileContainer.style.display = 'none';
+                if (currentRepo) {
+                    repoEditContainer.style.display = 'block';
+                } else {
+                    reposContainer.style.display = 'block';
+                }
+            });
             
             // Check if already logged in (from sessionStorage)
             if (sessionStorage.getItem('githubToken')) {
@@ -524,6 +705,31 @@
                 });
             }
             
+            function loadStarredRepos() {
+                starredRepos.innerHTML = '<div class="loading">Loading starred repositories...</div>';
+                
+                githubRequest('GET', 'https://api.github.com/users/' + currentUser + '/starred', null, function(repos) {
+                    if (repos.length === 0) {
+                        starredRepos.innerHTML = '<div>No starred repositories found.</div>';
+                        return;
+                    }
+                    
+                    var html = '';
+                    repos.forEach(function(repo) {
+                        html += '<div class="repo-item">' +
+                                '<div class="repo-name"><a href="javascript:void(0)" onclick="editRepository(\'' + repo.owner.login + '\', \'' + repo.name + '\', true)">' + repo.full_name + '</a></div>' +
+                                '<div class="repo-desc">' + (repo.description || 'No description') + '</div>' +
+                                '<div>Stars: ' + repo.stargazers_count + ' | Forks: ' + repo.forks_count + ' | ' + 
+                                (repo.private ? 'Private' : 'Public') + '</div>' +
+                                '</div>';
+                    });
+                    
+                    starredRepos.innerHTML = html;
+                }, function(error) {
+                    starredRepos.innerHTML = '<div class="error">Failed to load starred repositories: ' + (error.message || 'Unknown error') + '</div>';
+                });
+            }
+            
             function createRepository() {
                 var name = newRepoName.value.trim();
                 var description = newRepoDesc.value.trim();
@@ -580,7 +786,7 @@
                             html += '<div class="repo-item">' +
                                     '<img src="' + user.avatar_url + '" width="50" style="border-radius:50%; vertical-align:middle; margin-right:10px;">' +
                                     '<div style="display:inline-block; vertical-align:middle;">' +
-                                    '<div class="repo-name"><a href="javascript:void(0)" onclick="viewUserRepos(\'' + user.login + '\')">' + user.login + '</a></div>' +
+                                    '<div class="repo-name"><a href="javascript:void(0)" onclick="viewUserProfile(\'' + user.login + '\')">' + user.login + '</a></div>' +
                                     '</div>' +
                                     '</div>';
                         });
@@ -611,6 +817,21 @@
                     editRepoName.textContent = repoName;
                     editRepoDesc.value = repo.description || '';
                     
+                    // Check if repo is starred
+                    if (authToken) {
+                        githubRequest('GET', 'https://api.github.com/user/starred/' + owner + '/' + repoName, null, function() {
+                            isRepoStarred = true;
+                            starRepoBtn.style.display = 'none';
+                            unstarRepoBtn.style.display = 'inline-block';
+                        }, function(error) {
+                            if (error.status === 404) {
+                                isRepoStarred = false;
+                                starRepoBtn.style.display = 'inline-block';
+                                unstarRepoBtn.style.display = 'none';
+                            }
+                        });
+                    }
+                    
                     // Set up breadcrumb
                     updateBreadcrumb();
                     
@@ -619,11 +840,11 @@
                     
                     // Hide management tabs if viewing external repo
                     if (isExternal) {
-                        document.querySelectorAll('[data-tab="repo-info"], [data-tab="repo-collabs"]').forEach(function(tab) {
+                        document.querySelectorAll('[data-tab="repo-info"], [data-tab="repo-collabs"], [data-tab="repo-pages"]').forEach(function(tab) {
                             tab.style.display = 'none';
                         });
                     } else {
-                        document.querySelectorAll('[data-tab="repo-info"], [data-tab="repo-collabs"]').forEach(function(tab) {
+                        document.querySelectorAll('[data-tab="repo-info"], [data-tab="repo-collabs"], [data-tab="repo-pages"]').forEach(function(tab) {
                             tab.style.display = 'block';
                         });
                     }
@@ -633,14 +854,41 @@
                         loadCollaborators();
                     }
                     
-                    // Load releases
+                    // Load releases, issues, deployments, pages info
                     loadReleases();
+                    loadIssues();
+                    loadDeployments();
+                    loadPagesInfo();
                     
                     reposContainer.style.display = 'none';
                     repoEditContainer.style.display = 'block';
                     repoEditStatus.innerHTML = '';
                 }, function(error) {
                     repoEditStatus.innerHTML = '<div class="error">Failed to load repository details</div>';
+                });
+            }
+            
+            function starRepository() {
+                if (!currentRepo) return;
+                
+                githubRequest('PUT', 'https://api.github.com/user/starred/' + currentRepo.owner + '/' + currentRepo.name, null, function() {
+                    isRepoStarred = true;
+                    starRepoBtn.style.display = 'none';
+                    unstarRepoBtn.style.display = 'inline-block';
+                }, function(error) {
+                    repoEditStatus.innerHTML = '<div class="error">Failed to star repository: ' + (error.message || 'Unknown error') + '</div>';
+                });
+            }
+            
+            function unstarRepository() {
+                if (!currentRepo) return;
+                
+                githubRequest('DELETE', 'https://api.github.com/user/starred/' + currentRepo.owner + '/' + currentRepo.name, null, function() {
+                    isRepoStarred = false;
+                    starRepoBtn.style.display = 'inline-block';
+                    unstarRepoBtn.style.display = 'none';
+                }, function(error) {
+                    repoEditStatus.innerHTML = '<div class="error">Failed to unstar repository: ' + (error.message || 'Unknown error') + '</div>';
                 });
             }
             
@@ -987,9 +1235,9 @@
                     var html = '<h3>Collaborators</h3>';
                     collaborators.forEach(function(collab) {
                         html += '<div class="collab-item">' +
-                                '<img src="' + collab.avatar_url + '" class="collab-avatar">' +
+                                '<img src="' + collab.avatar_url + '" class="collab-avatar" onclick="viewUserProfile(\'' + collab.login + '\')" style="cursor:pointer;">' +
                                 '<div style="display:inline-block; vertical-align:middle;">' +
-                                '<div class="collab-name">' + collab.login + '</div>' +
+                                '<div class="collab-name" onclick="viewUserProfile(\'' + collab.login + '\')" style="cursor:pointer;">' + collab.login + '</div>' +
                                 '<div class="collab-role">Permissions: ' + (collab.permissions.admin ? 'Admin' : 
                                     (collab.permissions.push ? 'Write' : 'Read')) + '</div>' +
                                 '</div>' +
@@ -1014,9 +1262,26 @@
                     var html = '<h3>Releases</h3>';
                     releases.forEach(function(release) {
                         html += '<div class="release-item">' +
-                                '<div class="release-name">' + release.name + ' <small>(' + release.tag_name + ')</small></div>' +
-                                '<div class="release-desc">' + (release.body || 'No description') + '</div>' +
-                                '<div>Published: ' + new Date(release.published_at).toLocaleString() + '</div>';
+                                '<div class="release-name">' + release.name + ' <small>(' + release.tag_name + ')</small></div>';
+                        
+                        // Add markdown-rendered body if available
+                        if (release.body) {
+                            html += '<div class="markdown-preview">' + 
+                                    release.body
+                                        .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+                                        .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+                                        .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+                                        .replace(/\!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1">')
+                                        .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>')
+                                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                                        .replace(/_([^_]+)_/g, '<em>$1</em>')
+                                        .replace(/`(.*?)`/g, '<code>$1</code>')
+                                        .replace(/\n\n/g, '<br><br>') +
+                                    '</div>';
+                        }
+                        
+                        html += '<div>Published: ' + new Date(release.published_at).toLocaleString() + '</div>';
                         
                         if (release.assets && release.assets.length > 0) {
                             html += '<div><strong>Assets:</strong></div>';
@@ -1034,6 +1299,188 @@
                     releasesList.innerHTML = html;
                 }, function(error) {
                     releasesList.innerHTML = '<div class="error">Failed to load releases: ' + (error.message || 'Unknown error') + '</div>';
+                });
+            }
+            
+            function loadIssues() {
+                issuesList.innerHTML = '<div class="loading">Loading issues...</div>';
+                
+                githubRequest('GET', 'https://api.github.com/repos/' + currentRepo.owner + '/' + currentRepo.name + '/issues', null, function(issues) {
+                    if (issues.length === 0) {
+                        issuesList.innerHTML = '<div>No issues found for this repository.</div>';
+                        return;
+                    }
+                    
+                    var html = '<h3>Issues</h3>';
+                    issues.forEach(function(issue) {
+                        var labelHtml = '';
+                        if (issue.labels && issue.labels.length > 0) {
+                            issue.labels.forEach(function(label) {
+                                labelHtml += '<span class="issue-label" style="background-color:#' + label.color + '">' + label.name + '</span>';
+                            });
+                        }
+                        
+                        html += '<div class="issue-item">' +
+                                '<div class="issue-name"><a href="' + issue.html_url + '" target="_blank">' + issue.title + '</a> #' + issue.number + '</div>' +
+                                '<div class="issue-desc">' + labelHtml + 'Opened by ' + issue.user.login + ' on ' + new Date(issue.created_at).toLocaleString() + '</div>' +
+                                '</div>';
+                    });
+                    
+                    issuesList.innerHTML = html;
+                }, function(error) {
+                    issuesList.innerHTML = '<div class="error">Failed to load issues: ' + (error.message || 'Unknown error') + '</div>';
+                });
+            }
+            
+            function loadDeployments() {
+                deploymentsList.innerHTML = '<div class="loading">Loading deployments...</div>';
+                
+                githubRequest('GET', 'https://api.github.com/repos/' + currentRepo.owner + '/' + currentRepo.name + '/deployments', null, function(deployments) {
+                    if (deployments.length === 0) {
+                        deploymentsList.innerHTML = '<div>No deployments found for this repository.</div>';
+                        return;
+                    }
+                    
+                    var html = '<h3>Deployments</h3>';
+                    
+                    // We'll need to get status for each deployment
+                    var deploymentPromises = deployments.map(function(deployment) {
+                        return new Promise(function(resolve) {
+                            githubRequest('GET', deployment.statuses_url, null, function(statuses) {
+                                var status = statuses[0] || {};
+                                resolve({
+                                    deployment: deployment,
+                                    status: status
+                                });
+                            }, function() {
+                                resolve({
+                                    deployment: deployment,
+                                    status: {}
+                                });
+                            });
+                        });
+                    });
+                    
+                    Promise.all(deploymentPromises).then(function(results) {
+                        results.forEach(function(result) {
+                            var deployment = result.deployment;
+                            var status = result.status;
+                            
+                            var statusClass = 'status-pending';
+                            if (status.state === 'success') statusClass = 'status-success';
+                            else if (status.state === 'failure') statusClass = 'status-failure';
+                            
+                            html += '<div class="deployment-item">' +
+                                    '<div class="issue-name">' + deployment.environment + ' <small>(' + deployment.ref + ')</small></div>' +
+                                    '<div class="issue-desc">' +
+                                    '<span class="deployment-status ' + statusClass + '">' + (status.state || 'pending') + '</span>' +
+                                    'Deployed by ' + deployment.creator.login + ' on ' + new Date(deployment.created_at).toLocaleString() +
+                                    '</div>' +
+                                    '</div>';
+                        });
+                        
+                        deploymentsList.innerHTML = html;
+                    });
+                }, function(error) {
+                    deploymentsList.innerHTML = '<div class="error">Failed to load deployments: ' + (error.message || 'Unknown error') + '</div>';
+                });
+            }
+            
+            function loadPagesInfo() {
+                ghPagesInfo.innerHTML = '<div class="loading">Loading GitHub Pages info...</div>';
+                
+                githubRequest('GET', 'https://api.github.com/repos/' + currentRepo.owner + '/' + currentRepo.name + '/pages', null, function(pagesInfo) {
+                    var html = '<h3>GitHub Pages</h3>';
+                    
+                    if (pagesInfo && pagesInfo.status === 'built') {
+                        html += '<div class="success">GitHub Pages is enabled!</div>' +
+                                '<p>Your site is published at: <a href="' + pagesInfo.html_url + '" target="_blank">' + pagesInfo.html_url + '</a></p>' +
+                                '<p>Source: ' + pagesInfo.source.branch + ' branch' + 
+                                (pagesInfo.source.path ? ', ' + pagesInfo.source.path + ' directory' : '') + '</p>' +
+                                '<p>Last updated: ' + new Date(pagesInfo.updated_at).toLocaleString() + '</p>';
+                    } else {
+                        html += '<div>GitHub Pages is not enabled for this repository.</div>' +
+                                '<p>To enable GitHub Pages, create a branch named "gh-pages" or use the "docs" folder on your main branch.</p>';
+                    }
+                    
+                    ghPagesInfo.innerHTML = html;
+                }, function(error) {
+                    if (error.status === 404) {
+                        ghPagesInfo.innerHTML = '<div>GitHub Pages is not enabled for this repository.</div>' +
+                                '<p>To enable GitHub Pages, create a branch named "gh-pages" or use the "docs" folder on your main branch.</p>';
+                    } else {
+                        ghPagesInfo.innerHTML = '<div class="error">Failed to load GitHub Pages info: ' + (error.message || 'Unknown error') + '</div>';
+                    }
+                });
+            }
+            
+            function viewUserProfile(username) {
+                userProfileContent.innerHTML = '<div class="loading">Loading user profile...</div>';
+                
+                // Get user info
+                githubRequest('GET', 'https://api.github.com/users/' + username, null, function(user) {
+                    // Get user's organizations
+                    githubRequest('GET', 'https://api.github.com/users/' + username + '/orgs', null, function(orgs) {
+                        // Get user's starred repos
+                        githubRequest('GET', 'https://api.github.com/users/' + username + '/starred', null, function(starredRepos) {
+                            var html = '<div class="user-profile">' +
+                                       '<img src="' + user.avatar_url + '" class="user-avatar">' +
+                                       '<div class="user-info">' +
+                                       '<div class="user-name">' + (user.name || '') + '</div>' +
+                                       '<div class="user-login">@' + user.login + '</div>' +
+                                       '</div>' +
+                                       '</div>';
+                            
+                            if (user.bio) {
+                                html += '<div class="user-bio">' + user.bio + '</div>';
+                            }
+                            
+                            html += '<div class="user-stats">' +
+                                    '<div class="user-stat">Followers: ' + user.followers + '</div>' +
+                                    '<div class="user-stat">Following: ' + user.following + '</div>' +
+                                    '</div>';
+                            
+                            if (orgs.length > 0) {
+                                html += '<div><strong>Organizations:</strong></div>';
+                                orgs.forEach(function(org) {
+                                    html += '<img src="' + org.avatar_url + '" class="org-avatar" title="' + org.login + '">';
+                                });
+                                html += '<br><br>';
+                            }
+                            
+                            // Show starred repos if any
+                            if (starredRepos.length > 0) {
+                                html += '<div><strong>Starred Repositories:</strong></div>';
+                                starredRepos.slice(0, 5).forEach(function(repo) {
+                                    html += '<div class="repo-item">' +
+                                            '<div class="repo-name"><a href="javascript:void(0)" onclick="editRepository(\'' + repo.owner.login + '\', \'' + repo.name + '\', true)">' + repo.full_name + '</a></div>' +
+                                            '<div class="repo-desc">' + (repo.description || 'No description') + '</div>' +
+                                            '</div>';
+                                });
+                                if (starredRepos.length > 5) {
+                                    html += '<div>...and ' + (starredRepos.length - 5) + ' more</div>';
+                                }
+                            }
+                            
+                            // Add button to view user's repos
+                            html += '<div class="file-actions">' +
+                                    '<button onclick="viewUserRepos(\'' + user.login + '\')">View Repositories</button>' +
+                                    '</div>';
+                            
+                            userProfileContent.innerHTML = html;
+                            
+                            // Show the profile container
+                            repoEditContainer.style.display = 'none';
+                            reposContainer.style.display = 'none';
+                            userProfileContainer.style.display = 'block';
+                        }, function(error) {
+                            userProfileContent.innerHTML = '<div class="error">Failed to load starred repositories</div>';
+                        });
+                    }, function(error) {
+                        userProfileContent.innerHTML = '<div class="error">Failed to load organizations</div>';
+                    });
+                }, function(error) {
+                    userProfileContent.innerHTML = '<div class="error">Failed to load user profile</div>';
                 });
             }
             
@@ -1104,6 +1551,7 @@
             window.editRepository = editRepository;
             window.browseFiles = browseFiles;
             window.viewFile = viewFile;
+            window.viewUserProfile = viewUserProfile;
             window.viewUserRepos = function(username) {
                 searchResults.innerHTML = '<div class="loading">Loading repositories...</div>';
                 
@@ -1123,6 +1571,10 @@
                     });
                     
                     searchResults.innerHTML = html;
+                    
+                    // Hide profile and show search results
+                    userProfileContainer.style.display = 'none';
+                    reposContainer.style.display = 'block';
                 }, function(error) {
                     searchResults.innerHTML = '<div class="error">Failed to load repositories: ' + (error.message || 'Unknown error') + '</div>';
                 });
