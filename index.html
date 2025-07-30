@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub Client for KitKat</title>
+    <title>Ultimate GitHub Client</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -36,6 +36,8 @@
             color: white;
             border: none;
             cursor: pointer;
+            margin-right: 5px;
+            margin-bottom: 5px;
         }
         button:disabled {
             background-color: #cccccc;
@@ -46,18 +48,21 @@
         button.secondary {
             background-color: #6c757d;
         }
-        .repo-item, .file-item {
+        button.info {
+            background-color: #0366d6;
+        }
+        .repo-item, .file-item, .collab-item, .release-item {
             padding: 10px;
             border-bottom: 1px solid #eee;
         }
-        .repo-item:last-child, .file-item:last-child {
+        .repo-item:last-child, .file-item:last-child, .collab-item:last-child, .release-item:last-child {
             border-bottom: none;
         }
-        .repo-name, .file-name {
+        .repo-name, .file-name, .collab-name, .release-name {
             font-weight: bold;
             color: #0366d6;
         }
-        .repo-desc, .file-content {
+        .repo-desc, .file-content, .collab-role, .release-desc {
             color: #666;
             font-size: 0.9em;
         }
@@ -98,7 +103,7 @@
         .tab-content.active {
             display: block;
         }
-        .file-actions {
+        .file-actions, .repo-actions {
             margin-top: 10px;
         }
         .file-content-editor {
@@ -113,10 +118,35 @@
             color: #0366d6;
             text-decoration: none;
         }
+        .markdown-preview {
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 3px;
+            background-color: white;
+        }
+        .markdown-preview img {
+            max-width: 100%;
+        }
+        .image-preview {
+            max-width: 100%;
+            margin: 10px 0;
+        }
+        .collab-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        .release-asset {
+            font-size: 0.8em;
+            margin-left: 20px;
+            color: #586069;
+        }
     </style>
 </head>
 <body>
-    <h1>GitHub Client</h1>
+    <h1>Ultimate GitHub Client</h1>
     
     <div class="container" id="authContainer">
         <h2>Authentication</h2>
@@ -138,7 +168,7 @@
         <div class="tabs">
             <div class="tab active" data-tab="repos">My Repositories</div>
             <div class="tab" data-tab="create">Create Repository</div>
-            <div class="tab" data-tab="search">Search Users</div>
+            <div class="tab" data-tab="search">Search Users/Repos</div>
         </div>
         
         <div class="tab-content active" id="repos-tab">
@@ -158,9 +188,10 @@
         </div>
         
         <div class="tab-content" id="search-tab">
-            <input type="text" id="searchUser" placeholder="GitHub username" />
-            <button id="searchUserBtn">Search User</button>
-            <div id="userSearchResults"></div>
+            <input type="text" id="searchQuery" placeholder="Username or repo (user/repo)" />
+            <button id="searchUserBtn">Search Users</button>
+            <button id="searchRepoBtn">Search Repos</button>
+            <div id="searchResults"></div>
         </div>
     </div>
     
@@ -171,13 +202,17 @@
         <div class="tabs">
             <div class="tab active" data-tab="repo-info">Repository Info</div>
             <div class="tab" data-tab="repo-files">Files</div>
+            <div class="tab" data-tab="repo-collabs">Collaborators</div>
+            <div class="tab" data-tab="repo-releases">Releases</div>
         </div>
         
         <div class="tab-content active" id="repo-info-tab">
             <textarea id="editRepoDesc" placeholder="Description"></textarea>
-            <button id="updateRepoBtn">Update Repository</button>
-            <button id="deleteRepoBtn" class="danger">Delete Repository</button>
-            <button id="backToReposBtn">Back to Repositories</button>
+            <div class="repo-actions">
+                <button id="updateRepoBtn">Update Repository</button>
+                <button id="deleteRepoBtn" class="danger">Delete Repository</button>
+                <button id="backToReposBtn">Back to Repositories</button>
+            </div>
             <div id="repoEditStatus"></div>
         </div>
         
@@ -185,8 +220,13 @@
             <div id="fileBrowser"></div>
             <div id="fileEditor" style="display: none;">
                 <textarea id="fileContentEditor" class="file-content-editor"></textarea>
+                <div id="markdownPreview" class="markdown-preview" style="display: none;"></div>
+                <div id="imagePreview" style="display: none;">
+                    <img id="imagePreviewImg" class="image-preview" />
+                </div>
                 <div class="file-actions">
                     <button id="saveFileBtn">Save File</button>
+                    <button id="renameFileBtn" class="info">Rename File</button>
                     <button id="cancelEditFileBtn" class="secondary">Cancel</button>
                     <button id="deleteFileBtn" class="danger">Delete File</button>
                 </div>
@@ -201,9 +241,34 @@
                 </div>
                 <div id="fileCreateStatus"></div>
             </div>
-            <div id="fileActions">
+            <div id="fileRename" style="display: none;">
+                <input type="text" id="renameFilePath" placeholder="New file path" />
+                <div class="file-actions">
+                    <button id="confirmRenameFileBtn">Rename File</button>
+                    <button id="cancelRenameFileBtn" class="secondary">Cancel</button>
+                </div>
+                <div id="fileRenameStatus"></div>
+            </div>
+            <div class="file-actions">
                 <button id="newFileBtn">New File</button>
                 <button id="refreshFilesBtn">Refresh Files</button>
+                <button id="backToReposFromFilesBtn">Back to Repositories</button>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="repo-collabs-tab">
+            <div id="collabsList"></div>
+            <div class="file-actions">
+                <button id="refreshCollabsBtn">Refresh Collaborators</button>
+                <button id="backToReposFromCollabsBtn">Back to Repositories</button>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="repo-releases-tab">
+            <div id="releasesList"></div>
+            <div class="file-actions">
+                <button id="refreshReleasesBtn">Refresh Releases</button>
+                <button id="backToReposFromReleasesBtn">Back to Repositories</button>
             </div>
         </div>
     </div>
@@ -216,6 +281,7 @@
         var currentPath = '';
         var currentFile = null;
         var currentFileSha = null;
+        var isViewingExternalRepo = false;
         
         document.addEventListener('DOMContentLoaded', function() {
             // DOM elements
@@ -235,8 +301,9 @@
             var newRepoVisibility = document.getElementById('newRepoVisibility');
             var createRepoStatus = document.getElementById('createRepoStatus');
             var searchUserBtn = document.getElementById('searchUserBtn');
-            var searchUserInput = document.getElementById('searchUser');
-            var userSearchResults = document.getElementById('userSearchResults');
+            var searchRepoBtn = document.getElementById('searchRepoBtn');
+            var searchQuery = document.getElementById('searchQuery');
+            var searchResults = document.getElementById('searchResults');
             var repoEditContainer = document.getElementById('repoEditContainer');
             var editRepoName = document.getElementById('editRepoName');
             var editRepoDesc = document.getElementById('editRepoDesc');
@@ -248,7 +315,11 @@
             var fileBrowser = document.getElementById('fileBrowser');
             var fileEditor = document.getElementById('fileEditor');
             var fileContentEditor = document.getElementById('fileContentEditor');
+            var markdownPreview = document.getElementById('markdownPreview');
+            var imagePreview = document.getElementById('imagePreview');
+            var imagePreviewImg = document.getElementById('imagePreviewImg');
             var saveFileBtn = document.getElementById('saveFileBtn');
+            var renameFileBtn = document.getElementById('renameFileBtn');
             var cancelEditFileBtn = document.getElementById('cancelEditFileBtn');
             var deleteFileBtn = document.getElementById('deleteFileBtn');
             var fileEditStatus = document.getElementById('fileEditStatus');
@@ -258,8 +329,20 @@
             var createFileBtn = document.getElementById('createFileBtn');
             var cancelCreateFileBtn = document.getElementById('cancelCreateFileBtn');
             var fileCreateStatus = document.getElementById('fileCreateStatus');
+            var fileRename = document.getElementById('fileRename');
+            var renameFilePath = document.getElementById('renameFilePath');
+            var confirmRenameFileBtn = document.getElementById('confirmRenameFileBtn');
+            var cancelRenameFileBtn = document.getElementById('cancelRenameFileBtn');
+            var fileRenameStatus = document.getElementById('fileRenameStatus');
             var newFileBtn = document.getElementById('newFileBtn');
             var refreshFilesBtn = document.getElementById('refreshFilesBtn');
+            var backToReposFromFilesBtn = document.getElementById('backToReposFromFilesBtn');
+            var collabsList = document.getElementById('collabsList');
+            var refreshCollabsBtn = document.getElementById('refreshCollabsBtn');
+            var backToReposFromCollabsBtn = document.getElementById('backToReposFromCollabsBtn');
+            var releasesList = document.getElementById('releasesList');
+            var refreshReleasesBtn = document.getElementById('refreshReleasesBtn');
+            var backToReposFromReleasesBtn = document.getElementById('backToReposFromReleasesBtn');
             
             // Tab switching
             function setupTabs(container) {
@@ -276,7 +359,7 @@
                         
                         // Add active class to clicked tab and corresponding content
                         this.classList.add('active');
-                        container.querySelector('#' + this.getAttribute('data-tab') + '-tab').classList.add('active');
+                        document.getElementById(this.getAttribute('data-tab') + '-tab').classList.add('active');
                     });
                 });
             }
@@ -289,20 +372,17 @@
             logoutBtn.addEventListener('click', logout);
             refreshReposBtn.addEventListener('click', loadRepositories);
             createRepoBtn.addEventListener('click', createRepository);
-            searchUserBtn.addEventListener('click', searchGitHubUser);
+            searchUserBtn.addEventListener('click', function() { searchGitHub('users'); });
+            searchRepoBtn.addEventListener('click', function() { searchGitHub('repos'); });
             updateRepoBtn.addEventListener('click', updateRepository);
             deleteRepoBtn.addEventListener('click', deleteRepository);
-            backToReposBtn.addEventListener('click', function() {
-                repoEditContainer.style.display = 'none';
-                reposContainer.style.display = 'block';
-                currentRepo = null;
-                currentPath = '';
-            });
+            backToReposBtn.addEventListener('click', backToRepositories);
             
             newFileBtn.addEventListener('click', function() {
                 fileBrowser.style.display = 'none';
                 fileEditor.style.display = 'none';
                 fileCreate.style.display = 'block';
+                fileRename.style.display = 'none';
                 newFileName.value = '';
                 newFileContent.value = '';
                 fileCreateStatus.innerHTML = '';
@@ -313,10 +393,18 @@
             });
             
             saveFileBtn.addEventListener('click', saveFile);
+            renameFileBtn.addEventListener('click', showRenameFile);
             cancelEditFileBtn.addEventListener('click', cancelEditFile);
             deleteFileBtn.addEventListener('click', deleteFile);
             createFileBtn.addEventListener('click', createFile);
             cancelCreateFileBtn.addEventListener('click', cancelCreateFile);
+            confirmRenameFileBtn.addEventListener('click', renameFile);
+            cancelRenameFileBtn.addEventListener('click', cancelRenameFile);
+            backToReposFromFilesBtn.addEventListener('click', backToRepositories);
+            refreshCollabsBtn.addEventListener('click', loadCollaborators);
+            backToReposFromCollabsBtn.addEventListener('click', backToRepositories);
+            refreshReleasesBtn.addEventListener('click', loadReleases);
+            backToReposFromReleasesBtn.addEventListener('click', backToRepositories);
             
             // Check if already logged in (from sessionStorage)
             if (sessionStorage.getItem('githubToken')) {
@@ -400,11 +488,10 @@
                     var html = '';
                     repos.forEach(function(repo) {
                         html += '<div class="repo-item">' +
-                                '<div class="repo-name"><a href="' + repo.html_url + '" target="_blank">' + repo.name + '</a></div>' +
+                                '<div class="repo-name"><a href="javascript:void(0)" onclick="editRepository(\'' + repo.owner.login + '\', \'' + repo.name + '\', false)">' + repo.name + '</a></div>' +
                                 '<div class="repo-desc">' + (repo.description || 'No description') + '</div>' +
                                 '<div>Stars: ' + repo.stargazers_count + ' | Forks: ' + repo.forks_count + ' | ' + 
                                 (repo.private ? 'Private' : 'Public') + '</div>' +
-                                '<button onclick="editRepository(\'' + repo.owner.login + '\', \'' + repo.name + '\')">Manage</button>' +
                                 '</div>';
                     });
                     
@@ -443,33 +530,59 @@
                 });
             }
             
-            function searchGitHubUser() {
-                var username = searchUserInput.value.trim();
+            function searchGitHub(type) {
+                var query = searchQuery.value.trim();
                 
-                if (!username) {
-                    userSearchResults.innerHTML = '<div class="error">Please enter a username</div>';
+                if (!query) {
+                    searchResults.innerHTML = '<div class="error">Please enter a search query</div>';
                     return;
                 }
                 
-                userSearchResults.innerHTML = '<div class="loading">Searching for user...</div>';
+                searchResults.innerHTML = '<div class="loading">Searching...</div>';
                 
-                githubRequest('GET', 'https://api.github.com/users/' + encodeURIComponent(username), null, function(user) {
-                    var html = '<h3>' + user.login + '</h3>' +
-                               '<img src="' + user.avatar_url + '" width="100" style="border-radius:50%;"><br>' +
-                               '<p>' + (user.name || '') + '</p>' +
-                               '<p>' + (user.bio || '') + '</p>' +
-                               '<p>Followers: ' + user.followers + ' | Following: ' + user.following + '</p>' +
-                               '<button onclick="loadUserRepos(\'' + user.login + '\')">View Repositories</button>';
+                var url = type === 'users' ? 
+                    'https://api.github.com/search/users?q=' + encodeURIComponent(query) :
+                    'https://api.github.com/search/repositories?q=' + encodeURIComponent(query);
+                
+                githubRequest('GET', url, null, function(result) {
+                    if (result.items.length === 0) {
+                        searchResults.innerHTML = '<div>No results found.</div>';
+                        return;
+                    }
                     
-                    userSearchResults.innerHTML = html;
+                    var html = '';
+                    if (type === 'users') {
+                        html = '<h3>Users</h3>';
+                        result.items.forEach(function(user) {
+                            html += '<div class="repo-item">' +
+                                    '<img src="' + user.avatar_url + '" width="50" style="border-radius:50%; vertical-align:middle; margin-right:10px;">' +
+                                    '<div style="display:inline-block; vertical-align:middle;">' +
+                                    '<div class="repo-name"><a href="javascript:void(0)" onclick="viewUserRepos(\'' + user.login + '\')">' + user.login + '</a></div>' +
+                                    '</div>' +
+                                    '</div>';
+                        });
+                    } else {
+                        html = '<h3>Repositories</h3>';
+                        result.items.forEach(function(repo) {
+                            html += '<div class="repo-item">' +
+                                    '<div class="repo-name"><a href="javascript:void(0)" onclick="editRepository(\'' + repo.owner.login + '\', \'' + repo.name + '\', true)">' + repo.full_name + '</a></div>' +
+                                    '<div class="repo-desc">' + (repo.description || 'No description') + '</div>' +
+                                    '<div>Stars: ' + repo.stargazers_count + ' | Forks: ' + repo.forks_count + ' | ' + 
+                                    (repo.private ? 'Private' : 'Public') + '</div>' +
+                                    '</div>';
+                        });
+                    }
+                    
+                    searchResults.innerHTML = html;
                 }, function(error) {
-                    userSearchResults.innerHTML = '<div class="error">User not found: ' + username + '</div>';
+                    searchResults.innerHTML = '<div class="error">Search failed: ' + (error.message || 'Unknown error') + '</div>';
                 });
             }
             
-            function editRepository(owner, repoName) {
+            function editRepository(owner, repoName, isExternal) {
                 currentRepo = { owner: owner, name: repoName };
                 currentPath = '';
+                isViewingExternalRepo = isExternal;
                 
                 githubRequest('GET', 'https://api.github.com/repos/' + owner + '/' + repoName, null, function(repo) {
                     editRepoName.textContent = repoName;
@@ -480,6 +593,25 @@
                     
                     // Load root directory
                     browseFiles('');
+                    
+                    // Hide management tabs if viewing external repo
+                    if (isExternal) {
+                        document.querySelectorAll('[data-tab="repo-info"], [data-tab="repo-collabs"]').forEach(function(tab) {
+                            tab.style.display = 'none';
+                        });
+                    } else {
+                        document.querySelectorAll('[data-tab="repo-info"], [data-tab="repo-collabs"]').forEach(function(tab) {
+                            tab.style.display = 'block';
+                        });
+                    }
+                    
+                    // Load collaborators if not external
+                    if (!isExternal) {
+                        loadCollaborators();
+                    }
+                    
+                    // Load releases
+                    loadReleases();
                     
                     reposContainer.style.display = 'none';
                     repoEditContainer.style.display = 'block';
@@ -495,9 +627,9 @@
                 var newDescription = editRepoDesc.value.trim();
                 
                 var data = {
-                    name: currentRepo.name,  // Include name to fix validation error
+                    name: currentRepo.name,
                     description: newDescription,
-                    private: false  // Include private flag if needed
+                    private: false
                 };
                 
                 repoEditStatus.innerHTML = '<div class="loading">Updating repository...</div>';
@@ -523,11 +655,7 @@
                 githubRequest('DELETE', 'https://api.github.com/repos/' + currentRepo.owner + '/' + currentRepo.name, null, function() {
                     repoEditStatus.innerHTML = '<div class="success">Repository deleted successfully!</div>';
                     setTimeout(function() {
-                        repoEditContainer.style.display = 'none';
-                        reposContainer.style.display = 'block';
-                        currentRepo = null;
-                        currentPath = '';
-                        loadRepositories();
+                        backToRepositories();
                     }, 1500);
                 }, function(error) {
                     repoEditStatus.innerHTML = '<div class="error">Failed to delete repository: ' + (error.message || 'Unknown error') + '</div>';
@@ -571,6 +699,7 @@
                     fileBrowser.style.display = 'block';
                     fileEditor.style.display = 'none';
                     fileCreate.style.display = 'none';
+                    fileRename.style.display = 'none';
                     
                     // Update current path and breadcrumb
                     currentPath = path;
@@ -588,14 +717,66 @@
                     // Decode base64 content
                     var content = atob(file.content.replace(/\s/g, ''));
                     
-                    fileContentEditor.value = content;
+                    // Check file type
+                    var isImage = /\.(jpg|jpeg|png|gif|bmp)$/i.test(path);
+                    var isMarkdown = /\.md$/i.test(path);
+                    
+                    if (isImage) {
+                        // Display image
+                        fileContentEditor.style.display = 'none';
+                        markdownPreview.style.display = 'none';
+                        imagePreview.style.display = 'block';
+                        imagePreviewImg.src = file.download_url;
+                    } else if (isMarkdown) {
+                        // Display markdown with preview
+                        fileContentEditor.style.display = 'block';
+                        markdownPreview.style.display = 'block';
+                        imagePreview.style.display = 'none';
+                        fileContentEditor.value = content;
+                        renderMarkdownPreview(content);
+                    } else {
+                        // Display regular file
+                        fileContentEditor.style.display = 'block';
+                        markdownPreview.style.display = 'none';
+                        imagePreview.style.display = 'none';
+                        fileContentEditor.value = content;
+                    }
+                    
+                    // Show/hide edit buttons based on whether it's an external repo
+                    if (isViewingExternalRepo) {
+                        saveFileBtn.style.display = 'none';
+                        renameFileBtn.style.display = 'none';
+                        deleteFileBtn.style.display = 'none';
+                    } else {
+                        saveFileBtn.style.display = 'inline-block';
+                        renameFileBtn.style.display = 'inline-block';
+                        deleteFileBtn.style.display = 'inline-block';
+                    }
+                    
                     fileBrowser.style.display = 'none';
                     fileEditor.style.display = 'block';
                     fileCreate.style.display = 'none';
+                    fileRename.style.display = 'none';
                     fileEditStatus.innerHTML = '';
                 }, function(error) {
                     fileEditStatus.innerHTML = '<div class="error">Failed to load file: ' + (error.message || 'Unknown error') + '</div>';
                 });
+            }
+            
+            function renderMarkdownPreview(content) {
+                // Simple markdown rendering (basic replacements)
+                var html = content
+                    .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+                    .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+                    .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+                    .replace(/\!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1">')
+                    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>')
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                    .replace(/`(.*?)`/g, '<code>$1</code>')
+                    .replace(/\n\n/g, '<br><br>');
+                
+                markdownPreview.innerHTML = html;
             }
             
             function saveFile() {
@@ -620,6 +801,70 @@
                 }, function(error) {
                     fileEditStatus.innerHTML = '<div class="error">Failed to save file: ' + (error.message || 'Unknown error') + '</div>';
                 });
+            }
+            
+            function showRenameFile() {
+                if (!currentFile) return;
+                
+                fileEditor.style.display = 'none';
+                fileRename.style.display = 'block';
+                renameFilePath.value = currentFile;
+                fileRenameStatus.innerHTML = '';
+            }
+            
+            function renameFile() {
+                if (!currentFile || !currentFileSha) return;
+                
+                var newPath = renameFilePath.value.trim();
+                
+                if (!newPath) {
+                    fileRenameStatus.innerHTML = '<div class="error">New file path is required</div>';
+                    return;
+                }
+                
+                if (newPath === currentFile) {
+                    cancelRenameFile();
+                    return;
+                }
+                
+                // Get current file content
+                githubRequest('GET', 'https://api.github.com/repos/' + currentRepo.owner + '/' + currentRepo.name + '/contents/' + currentFile, null, function(file) {
+                    var content = file.content;
+                    
+                    // Create new file
+                    var createData = {
+                        message: 'Rename ' + currentFile + ' to ' + newPath,
+                        content: content
+                    };
+                    
+                    fileRenameStatus.innerHTML = '<div class="loading">Creating new file...</div>';
+                    
+                    githubRequest('PUT', 'https://api.github.com/repos/' + currentRepo.owner + '/' + currentRepo.name + '/contents/' + newPath, createData, function() {
+                        // Delete old file
+                        var deleteData = {
+                            message: 'Remove ' + currentFile + ' after rename',
+                            sha: currentFileSha
+                        };
+                        
+                        githubRequest('DELETE', 'https://api.github.com/repos/' + currentRepo.owner + '/' + currentRepo.name + '/contents/' + currentFile, deleteData, function() {
+                            fileRenameStatus.innerHTML = '<div class="success">File renamed successfully!</div>';
+                            setTimeout(function() {
+                                browseFiles(currentPath);
+                            }, 1000);
+                        }, function(error) {
+                            fileRenameStatus.innerHTML = '<div class="error">File renamed but failed to delete old file: ' + (error.message || 'Unknown error') + '</div>';
+                        });
+                    }, function(error) {
+                        fileRenameStatus.innerHTML = '<div class="error">Failed to create new file: ' + (error.message || 'Unknown error') + '</div>';
+                    });
+                }, function(error) {
+                    fileRenameStatus.innerHTML = '<div class="error">Failed to get file content: ' + (error.message || 'Unknown error') + '</div>';
+                });
+            }
+            
+            function cancelRenameFile() {
+                fileRename.style.display = 'none';
+                fileEditor.style.display = 'block';
             }
             
             function cancelEditFile() {
@@ -682,6 +927,74 @@
                 browseFiles(currentPath);
             }
             
+            function loadCollaborators() {
+                collabsList.innerHTML = '<div class="loading">Loading collaborators...</div>';
+                
+                githubRequest('GET', 'https://api.github.com/repos/' + currentRepo.owner + '/' + currentRepo.name + '/collaborators', null, function(collaborators) {
+                    if (collaborators.length === 0) {
+                        collabsList.innerHTML = '<div>No collaborators found for this repository.</div>';
+                        return;
+                    }
+                    
+                    var html = '<h3>Collaborators</h3>';
+                    collaborators.forEach(function(collab) {
+                        html += '<div class="collab-item">' +
+                                '<img src="' + collab.avatar_url + '" class="collab-avatar">' +
+                                '<div style="display:inline-block; vertical-align:middle;">' +
+                                '<div class="collab-name">' + collab.login + '</div>' +
+                                '<div class="collab-role">Permissions: ' + collab.permissions.admin ? 'Admin' : 
+                                    (collab.permissions.push ? 'Write' : 'Read') + '</div>' +
+                                '</div>' +
+                                '</div>';
+                    });
+                    
+                    collabsList.innerHTML = html;
+                }, function(error) {
+                    collabsList.innerHTML = '<div class="error">Failed to load collaborators: ' + (error.message || 'Unknown error') + '</div>';
+                });
+            }
+            
+            function loadReleases() {
+                releasesList.innerHTML = '<div class="loading">Loading releases...</div>';
+                
+                githubRequest('GET', 'https://api.github.com/repos/' + currentRepo.owner + '/' + currentRepo.name + '/releases', null, function(releases) {
+                    if (releases.length === 0) {
+                        releasesList.innerHTML = '<div>No releases found for this repository.</div>';
+                        return;
+                    }
+                    
+                    var html = '<h3>Releases</h3>';
+                    releases.forEach(function(release) {
+                        html += '<div class="release-item">' +
+                                '<div class="release-name">' + release.name + ' <small>(' + release.tag_name + ')</small></div>' +
+                                '<div class="release-desc">' + (release.body || 'No description') + '</div>' +
+                                '<div>Published: ' + new Date(release.published_at).toLocaleString() + '</div>';
+                        
+                        if (release.assets && release.assets.length > 0) {
+                            html += '<div><strong>Assets:</strong></div>';
+                            release.assets.forEach(function(asset) {
+                                html += '<div class="release-asset">' +
+                                        '<a href="' + asset.browser_download_url + '" target="_blank">' + asset.name + '</a> (' + 
+                                        formatFileSize(asset.size) + ')' +
+                                        '</div>';
+                            });
+                        }
+                        
+                        html += '</div>';
+                    });
+                    
+                    releasesList.innerHTML = html;
+                }, function(error) {
+                    releasesList.innerHTML = '<div class="error">Failed to load releases: ' + (error.message || 'Unknown error') + '</div>';
+                });
+            }
+            
+            function formatFileSize(bytes) {
+                if (bytes < 1024) return bytes + ' bytes';
+                else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+                else return (bytes / 1048576).toFixed(1) + ' MB';
+            }
+            
             function updateBreadcrumb() {
                 var parts = currentPath.split('/');
                 var breadcrumb = '<a href="javascript:void(0)" onclick="browseFiles(\'\')">' + currentRepo.name + '</a>';
@@ -695,6 +1008,16 @@
                 });
                 
                 repoBreadcrumb.innerHTML = breadcrumb;
+            }
+            
+            function backToRepositories() {
+                repoEditContainer.style.display = 'none';
+                reposContainer.style.display = 'block';
+                currentRepo = null;
+                currentPath = '';
+                currentFile = null;
+                currentFileSha = null;
+                isViewingExternalRepo = false;
             }
             
             // Make GitHub API requests
@@ -733,27 +1056,27 @@
             window.editRepository = editRepository;
             window.browseFiles = browseFiles;
             window.viewFile = viewFile;
-            window.loadUserRepos = function(username) {
-                userSearchResults.innerHTML = '<div class="loading">Loading repositories...</div>';
+            window.viewUserRepos = function(username) {
+                searchResults.innerHTML = '<div class="loading">Loading repositories...</div>';
                 
                 githubRequest('GET', 'https://api.github.com/users/' + encodeURIComponent(username) + '/repos', null, function(repos) {
                     if (repos.length === 0) {
-                        userSearchResults.innerHTML += '<div>No repositories found for this user.</div>';
+                        searchResults.innerHTML = '<div>No repositories found for this user.</div>';
                         return;
                     }
                     
                     var html = '<h3>' + username + '\'s Repositories</h3>';
                     repos.forEach(function(repo) {
                         html += '<div class="repo-item">' +
-                                '<div class="repo-name"><a href="' + repo.html_url + '" target="_blank">' + repo.name + '</a></div>' +
+                                '<div class="repo-name"><a href="javascript:void(0)" onclick="editRepository(\'' + repo.owner.login + '\', \'' + repo.name + '\', true)">' + repo.name + '</a></div>' +
                                 '<div class="repo-desc">' + (repo.description || 'No description') + '</div>' +
                                 '<div>Stars: ' + repo.stargazers_count + ' | Forks: ' + repo.forks_count + '</div>' +
                                 '</div>';
                     });
                     
-                    userSearchResults.innerHTML = html;
+                    searchResults.innerHTML = html;
                 }, function(error) {
-                    userSearchResults.innerHTML += '<div class="error">Failed to load repositories: ' + (error.message || 'Unknown error') + '</div>';
+                    searchResults.innerHTML = '<div class="error">Failed to load repositories: ' + (error.message || 'Unknown error') + '</div>';
                 });
             };
         });
