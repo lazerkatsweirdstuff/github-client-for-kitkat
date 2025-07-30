@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ultimate GitHub Client</title>
+    <title>KitKat GitHub Client</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -50,6 +50,9 @@
         }
         button.info {
             background-color: #0366d6;
+        }
+        button.download {
+            background-color: #6f42c1;
         }
         .repo-item, .file-item, .collab-item, .release-item {
             padding: 10px;
@@ -127,6 +130,9 @@
         .markdown-preview img {
             max-width: 100%;
         }
+        .markdown-preview em {
+            font-style: italic;
+        }
         .image-preview {
             max-width: 100%;
             margin: 10px 0;
@@ -143,10 +149,16 @@
             margin-left: 20px;
             color: #586069;
         }
+        .file-download-link {
+            display: inline-block;
+            margin-top: 5px;
+            color: #0366d6;
+            text-decoration: none;
+        }
     </style>
 </head>
 <body>
-    <h1>Ultimate GitHub Client</h1>
+    <h1>KitKat GitHub Client</h1>
     
     <div class="container" id="authContainer">
         <h2>Authentication</h2>
@@ -223,12 +235,17 @@
                 <div id="markdownPreview" class="markdown-preview" style="display: none;"></div>
                 <div id="imagePreview" style="display: none;">
                     <img id="imagePreviewImg" class="image-preview" />
+                    <a id="downloadImageBtn" href="#" class="file-download-link" download>Download Image</a>
+                </div>
+                <div id="fileDownload" style="display: none;">
+                    <a id="downloadFileBtn" href="#" class="file-download-link" download>Download File</a>
                 </div>
                 <div class="file-actions">
                     <button id="saveFileBtn">Save File</button>
                     <button id="renameFileBtn" class="info">Rename File</button>
                     <button id="cancelEditFileBtn" class="secondary">Cancel</button>
                     <button id="deleteFileBtn" class="danger">Delete File</button>
+                    <button id="downloadBtn" class="download">Download</button>
                 </div>
                 <div id="fileEditStatus"></div>
             </div>
@@ -282,6 +299,7 @@
         var currentFile = null;
         var currentFileSha = null;
         var isViewingExternalRepo = false;
+        var currentDownloadUrl = null;
         
         document.addEventListener('DOMContentLoaded', function() {
             // DOM elements
@@ -318,10 +336,14 @@
             var markdownPreview = document.getElementById('markdownPreview');
             var imagePreview = document.getElementById('imagePreview');
             var imagePreviewImg = document.getElementById('imagePreviewImg');
+            var downloadImageBtn = document.getElementById('downloadImageBtn');
+            var fileDownload = document.getElementById('fileDownload');
+            var downloadFileBtn = document.getElementById('downloadFileBtn');
             var saveFileBtn = document.getElementById('saveFileBtn');
             var renameFileBtn = document.getElementById('renameFileBtn');
             var cancelEditFileBtn = document.getElementById('cancelEditFileBtn');
             var deleteFileBtn = document.getElementById('deleteFileBtn');
+            var downloadBtn = document.getElementById('downloadBtn');
             var fileEditStatus = document.getElementById('fileEditStatus');
             var fileCreate = document.getElementById('fileCreate');
             var newFileName = document.getElementById('newFileName');
@@ -396,6 +418,7 @@
             renameFileBtn.addEventListener('click', showRenameFile);
             cancelEditFileBtn.addEventListener('click', cancelEditFile);
             deleteFileBtn.addEventListener('click', deleteFile);
+            downloadBtn.addEventListener('click', downloadCurrentFile);
             createFileBtn.addEventListener('click', createFile);
             cancelCreateFileBtn.addEventListener('click', cancelCreateFile);
             confirmRenameFileBtn.addEventListener('click', renameFile);
@@ -717,6 +740,13 @@
                     // Decode base64 content
                     var content = atob(file.content.replace(/\s/g, ''));
                     
+                    // Set download URL
+                    currentDownloadUrl = file.download_url;
+                    downloadImageBtn.href = file.download_url;
+                    downloadImageBtn.download = path.split('/').pop();
+                    downloadFileBtn.href = file.download_url;
+                    downloadFileBtn.download = path.split('/').pop();
+                    
                     // Check file type
                     var isImage = /\.(jpg|jpeg|png|gif|bmp)$/i.test(path);
                     var isMarkdown = /\.md$/i.test(path);
@@ -726,12 +756,14 @@
                         fileContentEditor.style.display = 'none';
                         markdownPreview.style.display = 'none';
                         imagePreview.style.display = 'block';
+                        fileDownload.style.display = 'none';
                         imagePreviewImg.src = file.download_url;
                     } else if (isMarkdown) {
                         // Display markdown with preview
                         fileContentEditor.style.display = 'block';
                         markdownPreview.style.display = 'block';
                         imagePreview.style.display = 'none';
+                        fileDownload.style.display = 'none';
                         fileContentEditor.value = content;
                         renderMarkdownPreview(content);
                     } else {
@@ -739,6 +771,7 @@
                         fileContentEditor.style.display = 'block';
                         markdownPreview.style.display = 'none';
                         imagePreview.style.display = 'none';
+                        fileDownload.style.display = 'block';
                         fileContentEditor.value = content;
                     }
                     
@@ -747,10 +780,12 @@
                         saveFileBtn.style.display = 'none';
                         renameFileBtn.style.display = 'none';
                         deleteFileBtn.style.display = 'none';
+                        downloadBtn.style.display = 'inline-block';
                     } else {
                         saveFileBtn.style.display = 'inline-block';
                         renameFileBtn.style.display = 'inline-block';
                         deleteFileBtn.style.display = 'inline-block';
+                        downloadBtn.style.display = 'inline-block';
                     }
                     
                     fileBrowser.style.display = 'none';
@@ -773,10 +808,23 @@
                     .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>')
                     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                     .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                    .replace(/_([^_]+)_/g, '<em>$1</em>')  // Added for _italic_ support
                     .replace(/`(.*?)`/g, '<code>$1</code>')
                     .replace(/\n\n/g, '<br><br>');
                 
                 markdownPreview.innerHTML = html;
+            }
+            
+            function downloadCurrentFile() {
+                if (!currentDownloadUrl) return;
+                
+                // Create a temporary anchor element to trigger download
+                var a = document.createElement('a');
+                a.href = currentDownloadUrl;
+                a.download = currentFile.split('/').pop();
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
             }
             
             function saveFile() {
@@ -942,8 +990,8 @@
                                 '<img src="' + collab.avatar_url + '" class="collab-avatar">' +
                                 '<div style="display:inline-block; vertical-align:middle;">' +
                                 '<div class="collab-name">' + collab.login + '</div>' +
-                                '<div class="collab-role">Permissions: ' + collab.permissions.admin ? 'Admin' : 
-                                    (collab.permissions.push ? 'Write' : 'Read') + '</div>' +
+                                '<div class="collab-role">Permissions: ' + (collab.permissions.admin ? 'Admin' : 
+                                    (collab.permissions.push ? 'Write' : 'Read')) + '</div>' +
                                 '</div>' +
                                 '</div>';
                     });
